@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+  <title>区块备注器 · 可编辑网格</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: linear-gradient(145deg, #2b3a2b 0%, #1c2a1c 100%);
+      font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0.5rem;
+      margin: 0;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .app-container {
+      max-width: 100%;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      background: #fbf5e8;
+      box-shadow: 0 30px 50px rgba(0, 0, 0, 0.5), inset 0 1px 10px rgba(255, 255, 200, 0.6);
+      padding: 0.8rem;
+      border: 1px solid #d4b68a;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      border-radius: 1.5rem;
+    }
+
+    h1 {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-weight: 500;
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+      letter-spacing: 2px;
+      color: #3a4a2a;
+      text-shadow: 1px 1px 0 #e7d7b0;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    h1 span {
+      background: #5b6e4b;
+      color: #f7f3d7;
+      padding: 0.2rem 0.8rem;
+      border-radius: 3rem;
+      font-size: clamp(0.8rem, 2.5vw, 1rem);
+      font-weight: 600;
+    }
+
+    .controls-panel {
+      background: #e7dcc0;
+      border-radius: 2.5rem;
+      padding: 0.6rem 0.8rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: inset 0 2px 8px rgba(90, 70, 20, 0.3), 0 8px 12px rgba(0,0,0,0.2);
+      border: 1px solid #c8af7e;
+      flex-shrink: 0;
+    }
+
+    .coords-input {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      background: #fef9e6;
+      padding: 0.2rem 0.6rem;
+      border-radius: 2.5rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .coords-input label {
+      font-weight: 600;
+      color: #4b5c33;
+      font-size: clamp(0.7rem, 2vw, 0.85rem);
+    }
+    .coords-input input {
+      width: clamp(50px, 10vw, 65px);
+      padding: 0.3rem 0.2rem;
+      border: 1px solid #b99e6b;
+      border-radius: 1.5rem;
+      text-align: center;
+      font-weight: bold;
+      background: #fffef7;
+      color: #2d3a1f;
+      font-size: clamp(0.75rem, 2vw, 0.9rem);
+      outline: none;
+    }
+    .coords-input input:focus {
+      border-color: #6f8c4a;
+      box-shadow: 0 0 0 3px rgba(100, 130, 60, 0.4);
+    }
+
+    button {
+      background: #cfaa6a;
+      border: none;
+      color: #2e2b1f;
+      font-weight: bold;
+      padding: clamp(0.3rem, 1.5vw, 0.5rem) clamp(0.6rem, 2vw, 1rem);
+      border-radius: 2.5rem;
+      font-size: clamp(0.7rem, 2vw, 0.85rem);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      box-shadow: 0 4px 0 #7a623c, 0 4px 8px rgba(0,0,0,0.3);
+      border: 1px solid #efd49e;
+      transition: all 0.08s ease;
+      text-shadow: 0 1px 0 white;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #5a4328, 0 3px 6px rgba(0,0,0,0.25);
+      background: #c29b4e;
+    }
+
+    .btn-danger {
+      background: #d44545;
+      border-color: #ff8a8a;
+      color: #fff5f5;
+      text-shadow: 0 1px 0 #4a0000;
+      box-shadow: 0 4px 0 #7a2a2a, 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .btn-danger:active {
+      background: #b53535;
+      box-shadow: 0 2px 0 #5a1a1a, 0 3px 6px rgba(0,0,0,0.25);
+    }
+
+    .grid-wrapper {
+      background: #7c9a5e;
+      border-radius: 1.5rem;
+      padding: 0.5rem;
+      box-shadow: inset 0 0 15px #2d381a, 0 15px 20px rgba(0, 0, 0, 0.5);
+      border: 2px solid #b5935a;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      min-height: 0;
+      touch-action: none;
+    }
+    .grid-wrapper:active {
+      cursor: grabbing;
+    }
+    .grid-wrapper.dragging {
+      cursor: grabbing;
+    }
+
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 1.2rem;
+      background: #8faa6f;
+      box-shadow: 0 0 0 3px #5b4b2b;
+      image-rendering: auto;
+      touch-action: none;
+    }
+
+    .info-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      background: #f3e5c7;
+      border-radius: 2.5rem;
+      padding: 0.5rem 1rem;
+      font-weight: 500;
+      color: #3e412b;
+      box-shadow: inset 0 1px 8px rgba(139, 115, 55, 0.5);
+      border: 1px solid #cfb27c;
+      font-size: clamp(0.7rem, 2vw, 0.9rem);
+      flex-shrink: 0;
+    }
+
+    .selected-info {
+      background: #524b31;
+      color: #f6f0d7;
+      padding: 0.2rem 0.8rem;
+      border-radius: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    }
+
+    .edit-section {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .edit-section input {
+      padding: 0.4rem 0.6rem;
+      border-radius: 2rem;
+      border: 1px solid #b59b5c;
+      background: #fffef3;
+      width: clamp(80px, 20vw, 140px);
+      font-size: clamp(0.7rem, 2vw, 0.85rem);
+      outline: none;
+    }
+    .edit-section input:focus {
+      border-color: #5d7940;
+      box-shadow: 0 0 0 3px rgba(110, 140, 50, 0.5);
+    }
+    .note-badge {
+      background: #cfaa6a;
+      padding: 0.2rem 0.5rem;
+      border-radius: 1.2rem;
+      font-weight: bold;
+      color: #1e2610;
+      font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    }
+
+    .storage-indicator {
+      font-size: clamp(0.6rem, 1.5vw, 0.75rem);
+      color: #5b6e4b;
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .zoom-indicator {
+      font-size: clamp(0.6rem, 1.5vw, 0.75rem);
+      color: #5b6e4b;
+      background: #e7dcc0;
+      padding: 0.15rem 0.5rem;
+      border-radius: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .app-container {
+        padding: 0.5rem;
+        gap: 0.5rem;
+      }
+      .controls-panel {
+        gap: 0.4rem;
+        padding: 0.5rem;
+      }
+      .edit-section input {
+        width: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <h1>
+    📦 区块备注器
+    <span>可编辑</span>
+  </h1>
+
+  <div class="controls-panel">
+    <div class="coords-input">
+      <label>📍 X</label>
+      <input type="number" id="coordX" value="0" step="1" placeholder="X">
+    </div>
+    <div class="coords-input">
+      <label>📍 Y</label>
+      <input type="number" id="coordY" value="0" step="1" placeholder="Y">
+    </div>
+    <button id="goBtn">
+      <span>🔍</span> 跳转
+    </button>
+    <button id="resetViewBtn">
+      <span>🔄</span> 重置
+    </button>
+    <button id="clearAllBtn" class="btn-danger">
+      <span>🗑️</span> 清空
+    </button>
+    <span class="storage-indicator" id="storageIndicator">💾 已缓存</span>
+    <span class="zoom-indicator" id="zoomIndicator">🔍 100%</span>
+  </div>
+
+  <div class="grid-wrapper" id="gridWrapper">
+    <canvas id="chunkCanvas"></canvas>
+  </div>
+
+  <div class="info-bar">
+    <div class="selected-info" id="selectedDisplay">
+      <span>🖱️ 选中</span>
+      <span id="selectedCoords">(-)</span>
+    </div>
+    <div class="edit-section">
+      <label for="contentInput" class="note-badge">📝 内容</label>
+      <input type="text" id="contentInput" placeholder="输入备注..." autocomplete="off">
+      <button id="saveContentBtn">💾 保存</button>
+      <button id="clearContentBtn" style="background:#b0925a;">🗑️ 清除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const canvas = document.getElementById('chunkCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('gridWrapper');
+
+    const BASE_CELL_SIZE = 120;
+    const VIEW_RANGE = 1000;
+    
+    const STORAGE_KEY = 'chunk_notes_data';
+    
+    const MIN_ZOOM = 0.4;
+    const MAX_ZOOM = 4;
+    
+    let zoom = 1;
+    let cellSize = BASE_CELL_SIZE;
+    
+    let anchorWorldX = 0;
+    let anchorWorldY = 0;
+    
+    let offsetScreenX = 0;
+    let offsetScreenY = 0;
+    
+    let selectedChunkX = null;
+    let selectedChunkY = null;
+
+    const chunkData = new Map();
+
+    const coordXInput = document.getElementById('coordX');
+    const coordYInput = document.getElementById('coordY');
+    const goBtn = document.getElementById('goBtn');
+    const resetViewBtn = document.getElementById('resetViewBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const selectedCoordsSpan = document.getElementById('selectedCoords');
+    const contentInput = document.getElementById('contentInput');
+    const saveContentBtn = document.getElementById('saveContentBtn');
+    const clearContentBtn = document.getElementById('clearContentBtn');
+    const storageIndicator = document.getElementById('storageIndicator');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+
+    // 检测是否为移动设备
+    const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || 
+                     ('ontouchstart' in window && window.innerWidth < 1024);
+    
+    // 桌面端拖拽状态
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let startOffsetX = 0;
+    let startOffsetY = 0;
+    let hasDragged = false;
+
+    // 移动端触摸状态
+    let touchStartTime = 0;
+    let touchStartPos = { x: 0, y: 0 };
+    let touchMoved = false;
+    let initialPinchDistance = 0;
+    let initialZoom = 1;
+    let pinchCenterWorld = { x: 0, y: 0 };
+    let pinchStartOffsetX = 0;
+    let pinchStartOffsetY = 0;
+
+    // ========== 本地存储 ==========
+    function saveToStorage() {
+      try {
+        const dataObj = {};
+        chunkData.forEach((value, key) => {
+          if (value && value.trim() !== '') {
+            dataObj[key] = value;
+          }
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataObj));
+        storageIndicator.textContent = '💾 已缓存';
+        storageIndicator.style.color = '#5b6e4b';
+      } catch (e) {
+        storageIndicator.textContent = '⚠️ 缓存失败';
+        storageIndicator.style.color = '#d44545';
+      }
+    }
+
+    function loadFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const dataObj = JSON.parse(saved);
+          chunkData.clear();
+          Object.entries(dataObj).forEach(([key, value]) => {
+            if (value && value.trim() !== '') {
+              chunkData.set(key, value);
+            }
+          });
+          storageIndicator.textContent = '💾 已加载';
+          storageIndicator.style.color = '#5b6e4b';
+          return true;
+        }
+      } catch (e) {
+        storageIndicator.textContent = '⚠️ 加载失败';
+        storageIndicator.style.color = '#d44545';
+      }
+      return false;
+    }
+
+    function clearAllData() {
+      if (chunkData.size === 0) {
+        alert('当前没有任何备注内容');
+        return;
+      }
+      if (confirm(`确定要清空全部 ${chunkData.size} 个区块的备注内容吗？此操作不可撤销。`)) {
+        chunkData.clear();
+        selectedChunkX = null;
+        selectedChunkY = null;
+        contentInput.value = '';
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+          storageIndicator.textContent = '💾 已清空';
+          storageIndicator.style.color = '#d44545';
+          setTimeout(() => {
+            storageIndicator.textContent = '💾 无缓存';
+            storageIndicator.style.color = '#5b6e4b';
+          }, 2000);
+        } catch (e) {}
+        refresh();
+      }
+    }
+
+    // ========== 坐标系统 ==========
+    function worldToScreen(worldX, worldY) {
+      const w = canvas.width;
+      const h = canvas.height;
+      return {
+        x: w / 2 + (worldX - anchorWorldX) * cellSize + offsetScreenX,
+        y: h / 2 + (worldY - anchorWorldY) * cellSize + offsetScreenY
+      };
+    }
+
+    function screenToWorld(screenX, screenY) {
+      const w = canvas.width;
+      const h = canvas.height;
+      return {
+        worldX: anchorWorldX + (screenX - w / 2 - offsetScreenX) / cellSize,
+        worldY: anchorWorldY + (screenY - h / 2 - offsetScreenY) / cellSize
+      };
+    }
+
+    function getVisibleWorldBounds() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const topLeft = screenToWorld(0, 0);
+      const bottomRight = screenToWorld(w, h);
+      return {
+        minX: Math.floor(Math.min(topLeft.worldX, bottomRight.worldX)) - 1,
+        maxX: Math.ceil(Math.max(topLeft.worldX, bottomRight.worldX)) + 1,
+        minY: Math.floor(Math.min(topLeft.worldY, bottomRight.worldY)) - 1,
+        maxY: Math.ceil(Math.max(topLeft.worldY, bottomRight.worldY)) + 1
+      };
+    }
+
+    function resizeCanvas() {
+      const rect = wrapper.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+      }
+    }
+
+    function jumpToWorld(worldX, worldY) {
+      anchorWorldX = worldX;
+      anchorWorldY = worldY;
+      offsetScreenX = 0;
+      offsetScreenY = 0;
+      refresh();
+    }
+
+    // ========== 渲染 ==========
+    function drawGrid() {
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const bounds = getVisibleWorldBounds();
+      
+      const startX = Math.max(anchorWorldX - VIEW_RANGE, bounds.minX);
+      const endX = Math.min(anchorWorldX + VIEW_RANGE, bounds.maxX);
+      const startY = Math.max(anchorWorldY - VIEW_RANGE, bounds.minY);
+      const endY = Math.min(anchorWorldY + VIEW_RANGE, bounds.maxY);
+
+      const corners = [
+        { wx: anchorWorldX - VIEW_RANGE, wy: anchorWorldY - VIEW_RANGE },
+        { wx: anchorWorldX + VIEW_RANGE, wy: anchorWorldY - VIEW_RANGE },
+        { wx: anchorWorldX - VIEW_RANGE, wy: anchorWorldY + VIEW_RANGE },
+        { wx: anchorWorldX + VIEW_RANGE, wy: anchorWorldY + VIEW_RANGE }
+      ];
+      
+      corners.forEach(corner => {
+        const s = worldToScreen(corner.wx, corner.wy);
+        if (s.x > -cellSize && s.x < canvas.width + cellSize &&
+            s.y > -cellSize && s.y < canvas.height + cellSize) {
+          ctx.fillStyle = 'rgba(212, 69, 69, 0.15)';
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x + 30 * zoom, s.y);
+          ctx.lineTo(s.x, s.y + 30 * zoom);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#d44545';
+          ctx.font = `${Math.max(8, 12 * zoom)}px "Segoe UI", "Roboto", sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText('✕', s.x + 4 * zoom, s.y + 4 * zoom);
+        }
+      });
+
+      for (let wy = startY; wy <= endY; wy++) {
+        for (let wx = startX; wx <= endX; wx++) {
+          if (Math.abs(wx - anchorWorldX) > VIEW_RANGE || Math.abs(wy - anchorWorldY) > VIEW_RANGE) continue;
+          
+          const s = worldToScreen(wx, wy);
+          const x = s.x;
+          const y = s.y;
+
+          if (x + cellSize < -1 || x > canvas.width + 1 || y + cellSize < -1 || y > canvas.height + 1) continue;
+
+          const isEven = (wx + wy) % 2 === 0;
+          let baseColor = isEven ? '#b3d9a0' : '#9ac97a';
+
+          const key = `${wx},${wy}`;
+          const hasContent = chunkData.has(key) && chunkData.get(key).trim() !== '';
+          if (hasContent) {
+            baseColor = isEven ? '#d4e3b0' : '#c2d69a';
+          }
+
+          ctx.fillStyle = baseColor;
+          ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+          ctx.strokeStyle = '#4d5a2b';
+          ctx.lineWidth = Math.max(1, 2 * zoom);
+          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+          const fontSize = Math.max(10, 18 * zoom);
+          ctx.font = `bold ${fontSize}px "Segoe UI", "Roboto", "Microsoft YaHei", sans-serif`;
+          ctx.fillStyle = '#1e2e0e';
+          ctx.textBaseline = 'top';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${wx},${wy}`, x + 8 * zoom, y + 8 * zoom);
+
+          if (hasContent) {
+            const content = chunkData.get(key);
+            const contentFontSize = Math.max(8, 16 * zoom);
+            ctx.font = `500 ${contentFontSize}px "Segoe UI", "Roboto", "Microsoft YaHei", sans-serif`;
+            ctx.fillStyle = '#0f2b0a';
+            let displayText = content.length > 10 ? content.substring(0, 9) + '…' : content;
+            ctx.fillText(displayText, x + 8 * zoom, y + cellSize - 28 * zoom);
+            
+            const emojiSize = Math.max(12, 20 * zoom);
+            ctx.font = `${emojiSize}px "Segoe UI", "Roboto", sans-serif`;
+            ctx.fillStyle = '#b45f2a';
+            ctx.textAlign = 'right';
+            ctx.fillText('📌', x + cellSize - 12 * zoom, y + 12 * zoom);
+          }
+        }
+      }
+
+      const anchorChunkX = Math.floor(anchorWorldX);
+      const anchorChunkY = Math.floor(anchorWorldY);
+      const anchorScreen = worldToScreen(anchorChunkX, anchorChunkY);
+      
+      if (anchorScreen.x + cellSize > -1 && anchorScreen.x < canvas.width + 1 &&
+          anchorScreen.y + cellSize > -1 && anchorScreen.y < canvas.height + 1) {
+        ctx.strokeStyle = '#f7e05e';
+        ctx.lineWidth = Math.max(2, 5 * zoom);
+        ctx.strokeRect(anchorScreen.x + 3, anchorScreen.y + 3, cellSize - 7, cellSize - 7);
+        
+        const anchorSize = Math.max(16, 24 * zoom);
+        ctx.font = `bold ${anchorSize}px "Segoe UI", "Roboto", sans-serif`;
+        ctx.fillStyle = '#3b3300';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚓', anchorScreen.x + cellSize / 2, anchorScreen.y + 45 * zoom);
+      }
+
+      if (selectedChunkX !== null && selectedChunkY !== null) {
+        const selS = worldToScreen(selectedChunkX, selectedChunkY);
+        if (selS.x + cellSize > -1 && selS.x < canvas.width + 1 &&
+            selS.y + cellSize > -1 && selS.y < canvas.height + 1) {
+          ctx.strokeStyle = '#d580ff';
+          ctx.lineWidth = Math.max(2, 5 * zoom);
+          ctx.strokeRect(selS.x + 3, selS.y + 3, cellSize - 7, cellSize - 7);
+          ctx.strokeStyle = '#b84dff';
+          ctx.lineWidth = Math.max(1, 3 * zoom);
+          ctx.strokeRect(selS.x - 2, selS.y - 2, cellSize + 3, cellSize + 3);
+        }
+      }
+
+      zoomIndicator.textContent = `🔍 ${Math.round(zoom * 100)}%`;
+    }
+
+    function updateUI() {
+      coordXInput.value = anchorWorldX;
+      coordYInput.value = anchorWorldY;
+
+      if (selectedChunkX !== null && selectedChunkY !== null) {
+        selectedCoordsSpan.textContent = `(${selectedChunkX}, ${selectedChunkY})`;
+        const key = `${selectedChunkX},${selectedChunkY}`;
+        const currentContent = chunkData.get(key) || '';
+        contentInput.value = currentContent;
+        contentInput.disabled = false;
+        saveContentBtn.disabled = false;
+        clearContentBtn.disabled = false;
+      } else {
+        selectedCoordsSpan.textContent = '未选择';
+        contentInput.value = '';
+        contentInput.disabled = true;
+        saveContentBtn.disabled = true;
+        clearContentBtn.disabled = true;
+      }
+    }
+
+    function refresh() {
+      drawGrid();
+      updateUI();
+    }
+
+    function selectChunkAt(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const screenX = clientX - rect.left;
+      const screenY = clientY - rect.top;
+      const { worldX, worldY } = screenToWorld(screenX, screenY);
+      
+      const chunkX = Math.floor(worldX);
+      const chunkY = Math.floor(worldY);
+      
+      if (Math.abs(chunkX - anchorWorldX) > VIEW_RANGE || Math.abs(chunkY - anchorWorldY) > VIEW_RANGE) return;
+
+      if (selectedChunkX === chunkX && selectedChunkY === chunkY) {
+        selectedChunkX = null;
+        selectedChunkY = null;
+      } else {
+        selectedChunkX = chunkX;
+        selectedChunkY = chunkY;
+      }
+      refresh();
+    }
+
+    // ========== 桌面端事件 ==========
+    function setupDesktopEvents() {
+      wrapper.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDragging = true;
+        hasDragged = false;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        startOffsetX = offsetScreenX;
+        startOffsetY = offsetScreenY;
+        wrapper.classList.add('dragging');
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) hasDragged = true;
+        offsetScreenX = startOffsetX + dx;
+        offsetScreenY = startOffsetY + dy;
+        refresh();
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        wrapper.classList.remove('dragging');
+        if (!hasDragged) selectChunkAt(e.clientX, e.clientY);
+      });
+
+      wrapper.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseScreenX = e.clientX - rect.left;
+        const mouseScreenY = e.clientY - rect.top;
+        
+        const worldBefore = screenToWorld(mouseScreenX, mouseScreenY);
+        
+        const oldZoom = zoom;
+        if (e.deltaY < 0) {
+          zoom = Math.min(MAX_ZOOM, zoom * 1.15);
+        } else {
+          zoom = Math.max(MIN_ZOOM, zoom / 1.15);
+        }
+        
+        if (oldZoom !== zoom) {
+          cellSize = BASE_CELL_SIZE * zoom;
+          const w = canvas.width;
+          const h = canvas.height;
+          offsetScreenX = mouseScreenX - w / 2 - (worldBefore.worldX - anchorWorldX) * cellSize;
+          offsetScreenY = mouseScreenY - h / 2 - (worldBefore.worldY - anchorWorldY) * cellSize;
+          refresh();
+        }
+      }, { passive: false });
+    }
+
+    // ========== 移动端事件 ==========
+    function getTouchDistance(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getTouchCenter(touches) {
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+      };
+    }
+
+    function setupMobileEvents() {
+      wrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          // 单指：记录起始位置和时间，用于判断点击还是拖动
+          touchStartTime = Date.now();
+          touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          touchMoved = false;
+          startOffsetX = offsetScreenX;
+          startOffsetY = offsetScreenY;
+        } else if (e.touches.length === 2) {
+          // 双指：开始缩放
+          initialPinchDistance = getTouchDistance(e.touches);
+          initialZoom = zoom;
+          const center = getTouchCenter(e.touches);
+          const rect = canvas.getBoundingClientRect();
+          const screenX = center.x - rect.left;
+          const screenY = center.y - rect.top;
+          pinchCenterWorld = screenToWorld(screenX, screenY);
+          pinchStartOffsetX = offsetScreenX;
+          pinchStartOffsetY = offsetScreenY;
+        }
+      }, { passive: false });
+
+      wrapper.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        
+        if (e.touches.length === 1 && initialPinchDistance === 0) {
+          // 单指拖动
+          const dx = e.touches[0].clientX - touchStartPos.x;
+          const dy = e.touches[0].clientY - touchStartPos.y;
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            touchMoved = true;
+          }
+          if (touchMoved) {
+            offsetScreenX = startOffsetX + dx;
+            offsetScreenY = startOffsetY + dy;
+            refresh();
+          }
+        } else if (e.touches.length === 2) {
+          // 双指缩放
+          const currentDistance = getTouchDistance(e.touches);
+          const center = getTouchCenter(e.touches);
+          const rect = canvas.getBoundingClientRect();
+          const screenX = center.x - rect.left;
+          const screenY = center.y - rect.top;
+          
+          if (initialPinchDistance > 0) {
+            const scale = currentDistance / initialPinchDistance;
+            const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * scale));
+            
+            if (newZoom !== zoom) {
+              zoom = newZoom;
+              cellSize = BASE_CELL_SIZE * zoom;
+              const w = canvas.width;
+              const h = canvas.height;
+              offsetScreenX = screenX - w / 2 - (pinchCenterWorld.worldX - anchorWorldX) * cellSize;
+              offsetScreenY = screenY - h / 2 - (pinchCenterWorld.worldY - anchorWorldY) * cellSize;
+              refresh();
+            }
+          }
+        }
+      }, { passive: false });
+
+      wrapper.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+          // 所有手指离开
+          if (!touchMoved && initialPinchDistance === 0) {
+            // 单指未移动，视为点击
+            const elapsed = Date.now() - touchStartTime;
+            if (elapsed < 300) {
+              selectChunkAt(touchStartPos.x, touchStartPos.y);
+            }
+          }
+          // 重置状态
+          touchMoved = false;
+          initialPinchDistance = 0;
+          touchStartTime = 0;
+        } else if (e.touches.length === 1) {
+          // 从双指变为单指，更新起始位置防止跳动
+          if (initialPinchDistance > 0) {
+            touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            startOffsetX = offsetScreenX;
+            startOffsetY = offsetScreenY;
+            touchMoved = false;
+            initialPinchDistance = 0;
+          }
+        }
+      });
+    }
+
+    function goToCoordinates() {
+      let x = parseInt(coordXInput.value, 10);
+      let y = parseInt(coordYInput.value, 10);
+      if (isNaN(x)) x = 0;
+      if (isNaN(y)) y = 0;
+      jumpToWorld(x, y);
+    }
+
+    function resetView() {
+      zoom = 1;
+      cellSize = BASE_CELL_SIZE;
+      offsetScreenX = 0;
+      offsetScreenY = 0;
+      jumpToWorld(0, 0);
+    }
+
+    function saveCurrentContent() {
+      if (selectedChunkX === null || selectedChunkY === null) {
+        alert('请先选择一个区块');
+        return;
+      }
+      const content = contentInput.value.trim();
+      const key = `${selectedChunkX},${selectedChunkY}`;
+      if (content === '') {
+        chunkData.delete(key);
+      } else {
+        chunkData.set(key, content);
+      }
+      saveToStorage();
+      refresh();
+    }
+
+    function clearSelectedContent() {
+      if (selectedChunkX === null || selectedChunkY === null) {
+        alert('请先选择一个区块');
+        return;
+      }
+      const key = `${selectedChunkX},${selectedChunkY}`;
+      chunkData.delete(key);
+      contentInput.value = '';
+      saveToStorage();
+      refresh();
+    }
+
+    goBtn.addEventListener('click', goToCoordinates);
+    resetViewBtn.addEventListener('click', resetView);
+    clearAllBtn.addEventListener('click', clearAllData);
+    saveContentBtn.addEventListener('click', saveCurrentContent);
+    clearContentBtn.addEventListener('click', clearSelectedContent);
+
+    coordXInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') goToCoordinates();
+    });
+    coordYInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') goToCoordinates();
+    });
+    contentInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveCurrentContent();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      refresh();
+    });
+
+    // 根据设备类型设置事件
+    if (isMobile) {
+      setupMobileEvents();
+      wrapper.style.cursor = 'default';
+    } else {
+      setupDesktopEvents();
+    }
+
+    loadFromStorage();
+    setTimeout(() => {
+      resizeCanvas();
+      jumpToWorld(0, 0);
+    }, 100);
+  })();
+</script>
+</body>
+</html>
