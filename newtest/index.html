@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
   <title>区块备注器 · 可编辑网格</title>
   
-  <!-- PWA Manifest -->
   <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIuWMuuWdl+Wkh+azqOWZqCIsCiAgInNob3J0X25hbWUiOiAi5Yy65Z2X5aSH5rOoIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiMyYjNhMmIiLAogICJ0aGVtZV9jb2xvciI6ICIjMmIzYTJiIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJyUzRSUzQ3JlY3Qgd2lkdGg9JzEwMCcgaGVpZ2h0PScxMDAnIGZpbGw9JyUyMzViNmU0YicvJTNFJTNDdGV4dCB4PSc1MCcgeT0nNjUnIGZvbnQtc2l6ZT0nNTAnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZpbGw9J3doaXRlJyUzRSVFNyVBQyU5NCUzQy90ZXh0JTNFJTNDL3N2ZyUzRSIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIiwKICAgICAgInR5cGUiOiAiaW1hZ2Uvc3ZnK3htbCIKICAgIH0KICBdCn0=">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
+  </script>
   
   <style>
     * {
@@ -352,13 +354,13 @@
       <span>🔄</span> 重置
     </button>
     <button id="exportBtn" class="btn-export">
-      <span>📤</span> 导出
+      <span>📦</span> 打包导出
     </button>
     <button id="importBtn" class="btn-import">
       <span>📥</span> 导入
     </button>
     <button id="installBtn" class="btn-install" style="display:none;">
-      <span>📲</span> 安装
+      <span>📲</span> 安装应用
     </button>
     <button id="clearAllBtn" class="btn-danger">
       <span>🗑️</span> 清空
@@ -458,7 +460,7 @@
 
     installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) {
-        showToast('安装功能暂不可用');
+        showToast('安装功能暂不可用，您可以通过浏览器菜单手动安装');
         return;
       }
       deferredPrompt.prompt();
@@ -475,33 +477,6 @@
       deferredPrompt = null;
     });
 
-    // 注册Service Worker用于离线缓存
-    if ('serviceWorker' in navigator) {
-      const swCode = `
-        const CACHE_NAME = 'chunk-notes-v1';
-        const urlsToCache = ['/'];
-        
-        self.addEventListener('install', (event) => {
-          event.waitUntil(
-            caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
-          );
-        });
-        
-        self.addEventListener('fetch', (event) => {
-          event.respondWith(
-            caches.match(event.request).then((response) => response || fetch(event.request))
-          );
-        });
-      `;
-      
-      const swBlob = new Blob([swCode], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(swBlob);
-      
-      navigator.serviceWorker.register(swUrl).catch(() => {
-        // Service Worker注册失败，静默处理
-      });
-    }
-
     // ========== Toast ==========
     function showToast(msg) {
       toast.textContent = msg;
@@ -509,7 +484,7 @@
       clearTimeout(toast._timeout);
       toast._timeout = setTimeout(() => {
         toast.classList.remove('show');
-      }, 2000);
+      }, 2500);
     }
 
     // ========== 本地存储 ==========
@@ -586,40 +561,10 @@
       return JSON.stringify(dataObj, null, 2);
     }
 
-    function exportData() {
-      const jsonStr = getDataAsJSON();
-      const dataObj = JSON.parse(jsonStr);
-      const count = Object.keys(dataObj).length;
-      
-      if (count === 0) {
-        showToast('没有可导出的数据');
-        return;
-      }
-
-      generateExportImage(dataObj).then(blob => {
-        const jsonBlob = new Blob([jsonStr], { type: 'application/json' });
-        const jsonUrl = URL.createObjectURL(jsonBlob);
-        const jsonLink = document.createElement('a');
-        jsonLink.href = jsonUrl;
-        jsonLink.download = `chunk_notes_${Date.now()}.json`;
-        jsonLink.click();
-        URL.revokeObjectURL(jsonUrl);
-
-        const imgUrl = URL.createObjectURL(blob);
-        const imgLink = document.createElement('a');
-        imgLink.href = imgUrl;
-        imgLink.download = `chunk_notes_${Date.now()}.png`;
-        imgLink.click();
-        URL.revokeObjectURL(imgUrl);
-
-        showToast(`已导出 ${count} 条记录（JSON + 图片）`);
-      });
-    }
-
-    function generateExportImage(dataObj) {
+    function generateExportImageBlob(dataObj) {
       return new Promise((resolve) => {
         const entries = Object.entries(dataObj);
-        const scale = 2; // 2倍分辨率
+        const scale = 2;
         const cardWidth = 280 * scale;
         const cardHeight = 80 * scale;
         const cardPadding = 20 * scale;
@@ -635,7 +580,6 @@
         tempCanvas.width = totalWidth;
         tempCanvas.height = totalHeight;
         
-        // 蓝底背景
         const gradient = tempCtx.createLinearGradient(0, 0, totalWidth, totalHeight);
         gradient.addColorStop(0, '#1a3a6a');
         gradient.addColorStop(0.5, '#1e4d8a');
@@ -643,7 +587,6 @@
         tempCtx.fillStyle = gradient;
         tempCtx.fillRect(0, 0, totalWidth, totalHeight);
         
-        // 网格背景
         tempCtx.strokeStyle = 'rgba(74, 154, 245, 0.1)';
         tempCtx.lineWidth = 1;
         const gridSize = 40 * scale;
@@ -660,7 +603,6 @@
           tempCtx.stroke();
         }
         
-        // 边框
         tempCtx.strokeStyle = '#4a9af5';
         tempCtx.lineWidth = 4 * scale;
         tempCtx.strokeRect(4 * scale, 4 * scale, totalWidth - 8 * scale, totalHeight - 8 * scale);
@@ -668,20 +610,17 @@
         tempCtx.lineWidth = 2 * scale;
         tempCtx.strokeRect(8 * scale, 8 * scale, totalWidth - 16 * scale, totalHeight - 16 * scale);
         
-        // 标题
         tempCtx.fillStyle = '#ffffff';
         tempCtx.font = `bold ${24 * scale}px "Segoe UI", "Roboto", "Microsoft YaHei", sans-serif`;
         tempCtx.textAlign = 'center';
         tempCtx.fillText('📦 区块备注数据', totalWidth / 2, 40 * scale);
         
-        // 每张卡片
         entries.forEach(([key, value], index) => {
           const row = Math.floor(index / cardsPerRow);
           const col = index % cardsPerRow;
           const cx = cardPadding + col * (cardWidth + cardPadding);
           const cy = 60 * scale + row * (cardHeight + cardPadding);
           
-          // 卡片背景
           tempCtx.fillStyle = 'rgba(10, 25, 60, 0.8)';
           tempCtx.strokeStyle = '#4a9af5';
           tempCtx.lineWidth = 2 * scale;
@@ -689,26 +628,22 @@
           tempCtx.fill();
           tempCtx.stroke();
           
-          // 坐标
           const [wx, wy] = key.split(',').map(Number);
           tempCtx.fillStyle = '#7ab8ff';
           tempCtx.font = `bold ${16 * scale}px "Segoe UI", "Roboto", "Microsoft YaHei", sans-serif`;
           tempCtx.textAlign = 'left';
           tempCtx.fillText(`📍 (${wx}, ${wy})`, cx + 15 * scale, cy + 30 * scale);
           
-          // 内容
           tempCtx.fillStyle = '#d0e8ff';
           tempCtx.font = `${14 * scale}px "Segoe UI", "Roboto", "Microsoft YaHei", sans-serif`;
           const displayValue = value.length > 18 ? value.substring(0, 17) + '…' : value;
           tempCtx.fillText(`📝 ${displayValue}`, cx + 15 * scale, cy + 55 * scale);
         });
         
-        // 底部信息
         tempCtx.fillStyle = '#5a8acf';
         tempCtx.font = `${12 * scale}px "Segoe UI", "Roboto", sans-serif`;
         tempCtx.textAlign = 'right';
-        const bottomY = totalHeight - 20 * scale;
-        tempCtx.fillText(`总计: ${entries.length} 条 | ${new Date().toLocaleString()}`, totalWidth - 20 * scale, bottomY);
+        tempCtx.fillText(`总计: ${entries.length} 条 | ${new Date().toLocaleString()}`, totalWidth - 20 * scale, totalHeight - 20 * scale);
         
         tempCanvas.toBlob(resolve, 'image/png');
       });
@@ -726,6 +661,61 @@
       ctx.lineTo(x, y + r);
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.closePath();
+    }
+
+    async function exportData() {
+      const jsonStr = getDataAsJSON();
+      const dataObj = JSON.parse(jsonStr);
+      const count = Object.keys(dataObj).length;
+      
+      if (count === 0) {
+        showToast('没有可导出的数据');
+        return;
+      }
+
+      try {
+        showToast('正在打包...');
+        
+        const imgBlob = await generateExportImageBlob(dataObj);
+        
+        // 使用JSZip打包
+        const zip = new JSZip();
+        zip.file('chunk_notes.json', jsonStr);
+        zip.file('chunk_notes_preview.png', imgBlob);
+        
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        
+        const zipUrl = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = zipUrl;
+        link.download = `chunk_notes_${Date.now()}.zip`;
+        link.click();
+        URL.revokeObjectURL(zipUrl);
+        
+        showToast(`已导出 ${count} 条记录（ZIP压缩包）`);
+      } catch (err) {
+        console.error('导出失败:', err);
+        // 如果JSZip没加载，回退到分别下载
+        showToast('ZIP打包失败，尝试分别下载...');
+        const imgBlob = await generateExportImageBlob(dataObj);
+        
+        const jsonBlob = new Blob([jsonStr], { type: 'application/json' });
+        const jsonUrl = URL.createObjectURL(jsonBlob);
+        const jsonLink = document.createElement('a');
+        jsonLink.href = jsonUrl;
+        jsonLink.download = `chunk_notes_${Date.now()}.json`;
+        jsonLink.click();
+        URL.revokeObjectURL(jsonUrl);
+
+        const imgUrl = URL.createObjectURL(imgBlob);
+        const imgLink = document.createElement('a');
+        imgLink.href = imgUrl;
+        imgLink.download = `chunk_notes_${Date.now()}.png`;
+        imgLink.click();
+        URL.revokeObjectURL(imgUrl);
+        
+        showToast(`已分别导出 ${count} 条记录（JSON + 图片）`);
+      }
     }
 
     function importData() {
