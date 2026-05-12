@@ -232,6 +232,7 @@
       border: 1px solid #cfb27c;
       font-size: clamp(0.7rem, 2vw, 0.9rem);
       flex-shrink: 0;
+      gap: 0.5rem;
     }
 
     .selected-info {
@@ -272,6 +273,12 @@
       font-weight: bold;
       color: #1e2610;
       font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+    }
+
+    .auto-save-hint {
+      font-size: clamp(0.55rem, 1.3vw, 0.7rem);
+      color: #8a7a5a;
+      font-style: italic;
     }
 
     .storage-indicator {
@@ -381,8 +388,7 @@
     <div class="edit-section">
       <label for="contentInput" class="note-badge">📝 内容</label>
       <input type="text" id="contentInput" placeholder="输入备注..." autocomplete="off">
-      <button id="saveContentBtn">💾 保存</button>
-      <button id="clearContentBtn" style="background:#b0925a;">🗑️ 清除</button>
+      <span class="auto-save-hint">✨ 切换区块自动保存</span>
     </div>
   </div>
 </div>
@@ -427,8 +433,6 @@
     const clearAllBtn = document.getElementById('clearAllBtn');
     const selectedCoordsSpan = document.getElementById('selectedCoords');
     const contentInput = document.getElementById('contentInput');
-    const saveContentBtn = document.getElementById('saveContentBtn');
-    const clearContentBtn = document.getElementById('clearContentBtn');
     const storageIndicator = document.getElementById('storageIndicator');
     const zoomIndicator = document.getElementById('zoomIndicator');
 
@@ -550,6 +554,29 @@
       }
     }
 
+    // ========== 自动保存当前选中区块的内容 ==========
+    function autoSaveCurrentContent() {
+      if (selectedChunkX === null || selectedChunkY === null) return;
+      
+      const content = contentInput.value.trim();
+      const key = `${selectedChunkX},${selectedChunkY}`;
+      
+      if (content === '') {
+        // 如果内容为空，且之前有内容，则删除
+        if (chunkData.has(key)) {
+          chunkData.delete(key);
+          saveToStorage();
+        }
+      } else {
+        // 只有内容变化时才保存
+        const oldContent = chunkData.get(key) || '';
+        if (oldContent !== content) {
+          chunkData.set(key, content);
+          saveToStorage();
+        }
+      }
+    }
+
     // ========== 导入导出 ==========
     function getDataAsJSON() {
       const dataObj = {};
@@ -664,6 +691,9 @@
     }
 
     async function exportData() {
+      // 导出前先自动保存
+      autoSaveCurrentContent();
+      
       const jsonStr = getDataAsJSON();
       const dataObj = JSON.parse(jsonStr);
       const count = Object.keys(dataObj).length;
@@ -678,7 +708,6 @@
         
         const imgBlob = await generateExportImageBlob(dataObj);
         
-        // 使用JSZip打包
         const zip = new JSZip();
         zip.file('chunk_notes.json', jsonStr);
         zip.file('chunk_notes_preview.png', imgBlob);
@@ -695,8 +724,6 @@
         showToast(`已导出 ${count} 条记录（ZIP压缩包）`);
       } catch (err) {
         console.error('导出失败:', err);
-        // 如果JSZip没加载，回退到分别下载
-        showToast('ZIP打包失败，尝试分别下载...');
         const imgBlob = await generateExportImageBlob(dataObj);
         
         const jsonBlob = new Blob([jsonStr], { type: 'application/json' });
@@ -719,6 +746,7 @@
     }
 
     function importData() {
+      autoSaveCurrentContent();
       fileInput.click();
     }
 
@@ -809,6 +837,7 @@
     }
 
     function jumpToWorld(worldX, worldY) {
+      autoSaveCurrentContent();
       anchorWorldX = worldX;
       anchorWorldY = worldY;
       offsetScreenX = 0;
@@ -947,14 +976,10 @@
         const currentContent = chunkData.get(key) || '';
         contentInput.value = currentContent;
         contentInput.disabled = false;
-        saveContentBtn.disabled = false;
-        clearContentBtn.disabled = false;
       } else {
         selectedCoordsSpan.textContent = '未选择';
         contentInput.value = '';
         contentInput.disabled = true;
-        saveContentBtn.disabled = true;
-        clearContentBtn.disabled = true;
       }
     }
 
@@ -974,13 +999,20 @@
       
       if (Math.abs(chunkX - anchorWorldX) > VIEW_RANGE || Math.abs(chunkY - anchorWorldY) > VIEW_RANGE) return;
 
+      // 如果点击的是已选中的区块，取消选中
       if (selectedChunkX === chunkX && selectedChunkY === chunkY) {
+        autoSaveCurrentContent();
         selectedChunkX = null;
         selectedChunkY = null;
-      } else {
-        selectedChunkX = chunkX;
-        selectedChunkY = chunkY;
+        refresh();
+        return;
       }
+
+      // 点击不同区块：先自动保存当前内容，再选中新区块
+      autoSaveCurrentContent();
+      
+      selectedChunkX = chunkX;
+      selectedChunkY = chunkY;
       refresh();
     }
 
@@ -1144,6 +1176,7 @@
     }
 
     function resetView() {
+      autoSaveCurrentContent();
       zoom = 1;
       cellSize = BASE_CELL_SIZE;
       offsetScreenX = 0;
@@ -1151,53 +1184,31 @@
       jumpToWorld(0, 0);
     }
 
-    function saveCurrentContent() {
-      if (selectedChunkX === null || selectedChunkY === null) {
-        alert('请先选择一个区块');
-        return;
+    // 内容输入框回车保存
+    contentInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        autoSaveCurrentContent();
+        showToast('内容已保存');
       }
-      const content = contentInput.value.trim();
-      const key = `${selectedChunkX},${selectedChunkY}`;
-      if (content === '') {
-        chunkData.delete(key);
-      } else {
-        chunkData.set(key, content);
-      }
-      saveToStorage();
-      refresh();
-    }
+    });
 
-    function clearSelectedContent() {
-      if (selectedChunkX === null || selectedChunkY === null) {
-        alert('请先选择一个区块');
-        return;
-      }
-      const key = `${selectedChunkX},${selectedChunkY}`;
-      chunkData.delete(key);
-      contentInput.value = '';
-      saveToStorage();
-      refresh();
-    }
+    // 内容输入框失去焦点时自动保存
+    contentInput.addEventListener('blur', () => {
+      autoSaveCurrentContent();
+    });
 
     goBtn.addEventListener('click', goToCoordinates);
     resetViewBtn.addEventListener('click', resetView);
     exportBtn.addEventListener('click', exportData);
     importBtn.addEventListener('click', importData);
     clearAllBtn.addEventListener('click', clearAllData);
-    saveContentBtn.addEventListener('click', saveCurrentContent);
-    clearContentBtn.addEventListener('click', clearSelectedContent);
 
     coordXInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') goToCoordinates();
     });
     coordYInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') goToCoordinates();
-    });
-    contentInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        saveCurrentContent();
-      }
     });
 
     window.addEventListener('resize', () => {
